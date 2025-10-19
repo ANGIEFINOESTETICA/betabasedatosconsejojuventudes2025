@@ -58,3 +58,4 @@ async function processImages() {
 }
 
 processBtn.addEventListener("click", processImages);
+
