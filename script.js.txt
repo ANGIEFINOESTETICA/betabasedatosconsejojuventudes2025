@@ -1,0 +1,60 @@
+const fileInput = document.getElementById("fileInput");
+const processBtn = document.getElementById("processBtn");
+const progress = document.getElementById("progress");
+const result = document.getElementById("result");
+
+async function extractText(file) {
+  progress.innerText = `Leyendo ${file.name}...`;
+  const { data: { text } } = await Tesseract.recognize(file, "spa", {
+    logger: m => {
+      if (m.status === "recognizing text") {
+        progress.innerText = `${file.name}: ${Math.round(m.progress * 100)}%`;
+      }
+    },
+  });
+  return text;
+}
+
+function parseData(text) {
+  const data = {};
+  const find = (regex) => (text.match(regex) || [])[1] || "";
+  data["Número de Cédula"] = find(/\b(\d[\d.\s]{5,})\b/);
+  data["Nombre y Apellidos"] = find(/Nombres?\s*y?\s*apellidos?:?\s*([A-ZÁÉÍÓÚÑ\s]+)/i);
+  data["Departamento"] = "META";
+  data["Municipio"] = "VILLAVICENCIO";
+  data["Puesto"] = find(/Puesto\s*:?([A-Za-z0-9\s\-\.]+)/i);
+  data["Mesa"] = find(/Mesa\s*:?(\d+)/i);
+  data["Fecha"] = find(/(\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚñ]+\s+de\s+\d{4})/i);
+  return data;
+}
+
+async function processImages() {
+  const files = Array.from(fileInput.files);
+  if (!files.length) {
+    alert("Por favor selecciona al menos una imagen.");
+    return;
+  }
+
+  processBtn.disabled = true;
+  progress.innerText = `Procesando ${files.length} imágenes...`;
+
+  const rows = [];
+  for (const file of files) {
+    const text = await extractText(file);
+    const info = parseData(text);
+    info["Archivo"] = file.name;
+    rows.push(info);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, "Certificados");
+  XLSX.writeFile(wb, "registro_votacion_meta.xlsx");
+
+  progress.innerText = "✅ ¡Excel generado correctamente!";
+  result.innerHTML = `<p>Descarga completada: <strong>registro_votacion_meta.xlsx</strong></p>`;
+
+  processBtn.disabled = false;
+}
+
+processBtn.addEventListener("click", processImages);
